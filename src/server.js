@@ -8,7 +8,7 @@ const PORT = env.port;
 // START SERVER
 // ============================================================
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
 
     console.log(
         `Bondada Foundation API running on port ${PORT}`
