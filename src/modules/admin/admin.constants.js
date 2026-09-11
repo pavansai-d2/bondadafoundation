@@ -1,0 +1,13 @@
+export const ADMIN_STATUS = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  LOCKED: "locked",
+};
+
+export const ADMIN_AUTH = {
+  MAX_FAILED_LOGIN_ATTEMPTS: 5,
+  LOCK_DURATION_MINUTES: 15,
+
+  ACCESS_TOKEN_EXPIRES_IN: "15m",
+  REFRESH_TOKEN_EXPIRES_DAYS: 7,
+};

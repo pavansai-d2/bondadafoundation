@@ -1,0 +1,48 @@
+# ============================================================
+# systemd unit for the Bondada Foundation backend API
+#
+# Install:
+#   sudo cp deploy/bondada-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable bondada-backend
+#   sudo systemctl start bondada-backend
+#
+# Logs:
+#   journalctl -u bondada-backend -f
+#
+# Adjust User/Group, WorkingDirectory, and EnvironmentFile paths
+# to match your actual VPS deployment path before installing.
+# ============================================================
+
+[Unit]
+Description=Bondada Foundation Backend API
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+
+# Run as a dedicated non-root service user — do not run as root.
+User=bondada
+Group=bondada
+
+WorkingDirectory=/opt/bondada/bondada-backend
+EnvironmentFile=/etc/bondada/.env.production
+
+ExecStart=/usr/bin/node src/server.js
+
+Restart=on-failure
+RestartSec=5
+
+# Basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/bondada/bondada-backend/storage /opt/bondada/bondada-backend/logs
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bondada-backend
+
+[Install]
+WantedBy=multi-user.target

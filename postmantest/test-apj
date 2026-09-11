@@ -1,0 +1,52 @@
+{
+    "scholarshipCode": "APJ_KALAM",
+    "scholarshipLevel": "pg",
+
+    "name": "APJ Kalam Test Student",
+    "dob": "2000-05-15",
+    "aadhar": "123456789012",
+    "mobile": "9876543210",
+    "email": "apjkalam@example.com",
+    "address": "Guntur, Andhra Pradesh",
+
+    "fatherName": "Test Father",
+    "motherName": "Test Mother",
+
+    "guardianName": "Test Guardian",
+    "guardianAadhar": "123456789013",
+    "guardianMobile": "9876543211",
+
+    "occupation": "Private Employee",
+    "annualFamilyIncome": "250000",
+    "income": "0",
+
+    "rationCardType": "White",
+    "rationCardNumber": "TEST123456",
+
+    "previousScholarship": "no",
+    "previousScholarshipYear": null,
+
+    "presentAddress": "Guntur, Andhra Pradesh",
+
+    "accountHolder": "APJ Kalam Test Student",
+    "bankName": "State Bank of India",
+    "accountNumber": "123456789012",
+    "confirmAccountNumber": "123456789012",
+    "ifsc": "SBIN0001234",
+    "branchName": "Guntur Main Branch",
+
+    "academic": {
+        "pgCourse": "M.Sc Computer Science",
+        "pgBranch": "Computer Science",
+        "pgCollegeUniversityName": "ABC University",
+        "pgCollegeUniversityLocation": "Guntur, Andhra Pradesh",
+        "pgAdmissionNumber": "PGADM2026001",
+        "pgYearOfPassing": "2026",
+
+        "ugYearOfPassing": "2024",
+        "ugCgpa": "8.4",
+        "pgCgpa": "8.6"
+    },
+
+    "declarationAccepted": true
+}

@@ -1,0 +1,49 @@
+{
+    "scholarshipCode": "VIDYA_ASARA",
+    "scholarshipLevel": "support",
+
+    "name": "Vidya Asara Test Student",
+    "dob": "2005-05-15",
+    "aadhar": "123456789012",
+    "mobile": "9876543210",
+    "email": "vidyaasara@example.com",
+    "address": "Guntur, Andhra Pradesh",
+
+    "fatherName": "Test Father",
+    "motherName": "Test Mother",
+
+    "guardianName": "Test Guardian",
+    "guardianAadhar": "123456789013",
+    "guardianMobile": "9876543211",
+
+    "occupation": "Private Employee",
+    "annualFamilyIncome": "250000",
+    "income": "0",
+
+    "rationCardType": "White",
+    "rationCardNumber": "TEST123456",
+
+    "previousScholarship": "no",
+    "previousScholarshipYear": null,
+
+    "presentAddress": "Guntur, Andhra Pradesh",
+
+    "accountHolder": "Vidya Asara Test Student",
+    "bankName": "State Bank of India",
+    "accountNumber": "123456789012",
+    "confirmAccountNumber": "123456789012",
+    "ifsc": "SBIN0001234",
+    "branchName": "Guntur Main Branch",
+
+    "academic": {
+        "currentEducationLevel": "B.Sc Computer Science",
+        "institutionName": "ABC Degree College",
+        "institutionLocation": "Guntur, Andhra Pradesh",
+        "yearOfStudy": "3rd Year",
+        "currentAdmissionNumber": "VIDYA2026001",
+        "latestPercentageCgpa": "8.5",
+        "purposeOfAssistance": "Financial assistance for higher education"
+    },
+
+    "declarationAccepted": true
+}
