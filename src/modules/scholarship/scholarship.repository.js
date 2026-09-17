@@ -195,6 +195,26 @@ export const getScholarshipStatistics = async () => {
 };
 
 // ============================================================
+// STATISTICS — single program (drives ScholarshipStatistics.jsx,
+// e.g. the "SSC Level" breakdown page). Uses the
+// sp_scholarship_statistics_by_program procedure.
+// ============================================================
+
+export const getScholarshipStatisticsByProgram = async (code) => {
+  const rows = await callProcedure("sp_scholarship_statistics_by_program", [code]);
+  const row = rows[0] || {};
+
+  return {
+    total: Number(row.total || 0),
+    pending: Number(row.pending || 0),
+    eligible: Number(row.eligible || 0),
+    nonEligible: Number(row.nonEligible || 0),
+    approved: Number(row.approved || 0),
+    rejected: Number(row.rejected || 0),
+  };
+};
+
+// ============================================================
 // STATUS
 // ============================================================
 

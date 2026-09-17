@@ -11,6 +11,7 @@ import {
   getApplicationHistory,
   getApplicationDocuments,
   getScholarshipStatisticsController,
+  getScholarshipStatisticsByProgramController,
   viewScholarshipDocument,
   downloadScholarshipDocument,
 } from "./scholarship.controller.js";
@@ -55,6 +56,12 @@ router.get("/applications/check", checkRecentApplicationSubmission);
 // =====================================================
 
 router.get("/statistics", authenticate, requirePermission("scholarship.view"), getScholarshipStatisticsController);
+router.get(
+  "/programs/:code/statistics",
+  authenticate,
+  requirePermission("scholarship.view"),
+  getScholarshipStatisticsByProgramController
+);
 
 router.get("/applications", authenticate, requirePermission("scholarship.view"), getApplications);
 router.get("/applications/:id", authenticate, requirePermission("scholarship.view"), getApplicationById);

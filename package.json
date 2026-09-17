@@ -21,7 +21,8 @@
         "jsonwebtoken": "^9.0.3",
         "morgan": "^1.10.0",
         "multer": "^2.0.2",
-        "mysql2": "^3.24.4"
+        "mysql2": "^3.24.4",
+        "nodemailer": "^6.9.16"
     },
     "devDependencies": {
         "@types/node": "^22.10.5",

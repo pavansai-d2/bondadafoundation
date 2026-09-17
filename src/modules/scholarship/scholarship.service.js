@@ -13,6 +13,7 @@ import {
   getStatusTransitionOptions,
   getDocumentTypeConfigByProgram,
   getScholarshipStatistics,
+  getScholarshipStatisticsByProgram,
   findRecentApplicationByAadhaar,
 } from "./scholarship.repository.js";
 
@@ -124,6 +125,18 @@ export const getValidNextStatuses = async (currentStatus, programId) => {
 
 export const getStatistics = async () => {
   return await getScholarshipStatistics();
+};
+
+export const getStatisticsByProgram = async (code) => {
+  const scholarship = await getScholarshipByCode(code);
+
+  if (!scholarship) {
+    const error = new Error("Scholarship program not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return await getScholarshipStatisticsByProgram(code);
 };
 
 // ============================================================

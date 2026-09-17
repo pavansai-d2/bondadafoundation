@@ -12,6 +12,7 @@ import {
   getScholarshipDocument,
   getRequiredDocumentsForProgram,
   getStatistics,
+  getStatisticsByProgram,
   checkRecentSubmission,
 } from "./scholarship.service.js";
 
@@ -191,6 +192,20 @@ export const getScholarshipStatisticsController = async (req, res, next) => {
   try {
     const stats = await getStatistics();
     res.status(200).json({ success: true, ...stats });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ============================================================
+// STATISTICS — single program (drives the per-program statistics
+// page, e.g. "SSC Level")
+// ============================================================
+
+export const getScholarshipStatisticsByProgramController = async (req, res, next) => {
+  try {
+    const stats = await getStatisticsByProgram(req.params.code);
+    res.status(200).json({ success: true, data: stats });
   } catch (error) {
     next(error);
   }
