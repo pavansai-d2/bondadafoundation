@@ -19,7 +19,7 @@ import env from "../config/env.js";
 import {
   buildObjectKey,
   uploadToR2,
-  getPresignedUrl,
+  getObjectStream,
   deleteFromR2,
   objectExistsInR2,
 } from "./r2Storage.util.js";
@@ -85,10 +85,17 @@ export const scholarshipDocumentExists = async (document) => {
 
 export const resolveDocumentAccess = async (document, { download = false } = {}) => {
   if (isR2()) {
-    const url = await getPresignedUrl(document.file_path, {
-      asAttachmentFilename: download ? document.original_name : null,
-    });
-    return { type: "url", value: url };
+    // Proxy the object through this backend rather than redirecting
+    // the browser to a presigned R2 URL — see the comment on
+    // getObjectStream() in r2Storage.util.js for why (R2-bucket CORS).
+    const { stream, contentType, contentLength } = await getObjectStream(document.file_path);
+
+    return {
+      type: "stream",
+      stream,
+      contentType: contentType || document.mime_type || null,
+      contentLength,
+    };
   }
   return { type: "path", value: getScholarshipDocumentPath(document.stored_name) };
 };

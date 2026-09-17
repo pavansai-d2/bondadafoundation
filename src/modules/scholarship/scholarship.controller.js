@@ -212,8 +212,13 @@ export const getScholarshipStatisticsByProgramController = async (req, res, next
 };
 
 // ============================================================
-// DOCUMENT VIEW / DOWNLOAD (short-lived R2 presigned URL, or
-// local stream in dev)
+// DOCUMENT VIEW / DOWNLOAD
+//
+// R2 objects are proxied through this server (see
+// resolveDocumentAccess / getObjectStream) rather than redirecting
+// the browser to a presigned R2 URL, to avoid needing CORS
+// configured on the R2 bucket itself. Local files are streamed
+// straight off disk, as before.
 // ============================================================
 
 export const viewScholarshipDocument = async (req, res, next) => {
@@ -246,7 +251,7 @@ export const viewScholarshipDocument = async (req, res, next) => {
       return res.redirect(302, access.value);
     }
 
-    let mimeType = document.mime_type;
+    let mimeType = access.type === "stream" ? access.contentType : document.mime_type;
 
     if (!mimeType || mimeType === "application/octet-stream") {
       const extension = path.extname(document.original_name).toLowerCase();
@@ -256,6 +261,15 @@ export const viewScholarshipDocument = async (req, res, next) => {
 
     res.setHeader("Content-Type", mimeType);
     res.setHeader("Content-Disposition", "inline");
+
+    if (access.type === "stream") {
+      if (access.contentLength) {
+        res.setHeader("Content-Length", access.contentLength);
+      }
+      access.stream.on("error", (error) => next(error));
+      access.stream.pipe(res);
+      return;
+    }
 
     const stream = fs.createReadStream(access.value);
     stream.on("error", (error) => next(error));
@@ -293,6 +307,21 @@ export const downloadScholarshipDocument = async (req, res, next) => {
 
     if (access.type === "url") {
       return res.redirect(302, access.value);
+    }
+
+    if (access.type === "stream") {
+      const mimeType = access.contentType || document.mime_type || "application/octet-stream";
+
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${document.original_name}"`);
+
+      if (access.contentLength) {
+        res.setHeader("Content-Length", access.contentLength);
+      }
+
+      access.stream.on("error", (error) => next(error));
+      access.stream.pipe(res);
+      return;
     }
 
     res.download(access.value, document.original_name, (error) => {

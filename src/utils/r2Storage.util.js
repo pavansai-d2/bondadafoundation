@@ -167,4 +167,45 @@ export const getPresignedUrl = async (objectKey, { asAttachmentFilename = null }
   return await getSignedUrl(client, command, { expiresIn: env.r2.presignedUrlExpirySeconds });
 };
 
-export default { buildObjectKey, uploadToR2, deleteFromR2, objectExistsInR2, getPresignedUrl };
+// ============================================================
+// SERVER-SIDE OBJECT STREAM
+//
+// Used to PROXY a document through this backend instead of
+// redirecting the browser straight to R2 with a presigned URL.
+//
+// The presigned-URL redirect approach (getPresignedUrl above) makes
+// the browser issue a second, cross-origin request directly to
+// *.r2.cloudflarestorage.com. When that request is made via
+// fetch/XHR (as the admin panel's "View"/"Download" buttons do, so
+// they can show the file as a blob), the browser enforces CORS on
+// that redirected response too — and the R2 bucket has no CORS
+// policy allowing the frontend's origin, so the browser blocks it
+// outright ("has been blocked by CORS policy: No
+// 'Access-Control-Allow-Origin' header is present"). Streaming the
+// object through this backend avoids that entirely: the browser
+// only ever talks to this API, which already sends the right CORS
+// headers for the frontend's origin.
+// ============================================================
+
+export const getObjectStream = async (objectKey) => {
+  const client = getClient();
+
+  const response = await client.send(
+    new GetObjectCommand({ Bucket: env.r2.bucketName, Key: objectKey })
+  );
+
+  return {
+    stream: response.Body, // Node.js Readable stream
+    contentType: response.ContentType,
+    contentLength: response.ContentLength,
+  };
+};
+
+export default {
+  buildObjectKey,
+  uploadToR2,
+  deleteFromR2,
+  objectExistsInR2,
+  getPresignedUrl,
+  getObjectStream,
+};
