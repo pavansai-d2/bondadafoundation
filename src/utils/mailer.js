@@ -47,6 +47,9 @@ const getTransporter = () => {
     host: env.mail.host,
     port: env.mail.port,
     secure: env.mail.secure,
+    // Office365/Outlook (and most providers on port 587) expect an
+    // explicit STARTTLS upgrade rather than an implicit TLS connection.
+    requireTLS: !env.mail.secure,
     auth: {
       user: env.mail.user,
       pass: env.mail.password,

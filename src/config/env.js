@@ -5,6 +5,24 @@ import dotenv from "dotenv";
 const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
 dotenv.config({ path: envFile, override: false });
 
+// Some hosting dashboards (Render, etc.) store whatever text is typed
+// into an env var's value box verbatim, quote characters included, if
+// someone pastes something like "587" instead of 587. That turns
+// Number('"587"') into NaN and breaks the SMTP connection silently.
+// This strips a single layer of matching leading/trailing quotes
+// before the value is parsed.
+const unquote = (value) => {
+  const trimmed = String(value).trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+
 const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 5000),
@@ -26,13 +44,13 @@ const env = {
     lockDurationMinutes: Number(process.env.ADMIN_LOCK_DURATION_MINUTES || 15),
   },
   mail: {
-    host: process.env.SMTP_HOST || "",
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE || "false").toLowerCase() === "true",
-    user: process.env.SMTP_USER || "",
-    password: process.env.SMTP_PASSWORD || "",
-    from: process.env.MAIL_FROM || process.env.SMTP_USER || "no-reply@bondadafoundation.org",
-    contactReceiver: process.env.CONTACT_RECEIVER_EMAIL || "info@bondadafoundation.org",
+    host: unquote(process.env.SMTP_HOST || ""),
+    port: Number(unquote(process.env.SMTP_PORT || "587")),
+    secure: unquote(process.env.SMTP_SECURE || "false").toLowerCase() === "true",
+    user: unquote(process.env.SMTP_USER || ""),
+    password: unquote(process.env.SMTP_PASSWORD || ""),
+    from: unquote(process.env.MAIL_FROM || process.env.SMTP_USER || "no-reply@bondadafoundation.org"),
+    contactReceiver: unquote(process.env.CONTACT_RECEIVER_EMAIL || "info@bondadafoundation.org"),
   },
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
   adminFrontendUrl: process.env.ADMIN_FRONTEND_URL || process.env.FRONTEND_URL || "http://localhost:5173",
