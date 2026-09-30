@@ -69,19 +69,23 @@ export const submitScholarshipApplication = async (req, res, next) => {
 
     const result = await createScholarshipApplication(data, req.files || {});
 
-    // The production proxy has intermittently delivered the HTTP
-    // status and headers but failed while the browser was reading the
-    // JSON response body. The database and all documents were already
-    // committed in those cases. Return a body-free HTTP 200 response
-    // and expose the two identifiers in CORS-readable headers.
-    res.status(200).json({
-    success: true,
-    message: "Scholarship application submitted successfully.",
-    data: {
-        applicationNumber: result.applicationNumber,
-        programApplicationNumber: result.programApplicationNumber
-    }
-});
+    // GoDaddy/Nginx proxy intermittently strips the JSON response body
+    // on large multipart uploads even when it returns 200 OK. To survive
+    // this, we expose the application numbers in CORS-readable response
+    // headers AND in the JSON body. The frontend reads headers first,
+    // falls back to body. Either way the applicant gets their number.
+    res
+      .status(200)
+      .set("X-Application-Number", result.applicationNumber || "")
+      .set("X-Program-Application-Number", result.programApplicationNumber || "")
+      .json({
+        success: true,
+        message: "Scholarship application submitted successfully.",
+        data: {
+          applicationNumber: result.applicationNumber,
+          programApplicationNumber: result.programApplicationNumber,
+        },
+      });
   } catch (error) {
     next(error);
   }
