@@ -11,6 +11,7 @@ import { checkR2Connection } from "./utils/r2Storage.util.js";
 import scholarshipRoutes from "./modules/scholarship/scholarship.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import contactRoutes from "./modules/contact/contact.routes.js";
+import donationRoutes from "./modules/donation/donation.routes.js"; // ← NEW
 
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
@@ -174,7 +175,7 @@ app.get("/health", (req, res) => {
     success: true,
     message: "Bondada Foundation API is running.",
     environment: env.nodeEnv,
-    buildMarker: "cors-fix-200-2026-09-10-v2",
+    buildMarker: "diploma-email-update-2026-09-30",
   });
 });
 
@@ -215,6 +216,7 @@ app.get("/health/storage", async (req, res) => {
 app.use("/api/v1/scholarships", scholarshipRoutes);
 app.use("/api/v1/contact", contactRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/donations", donationRoutes);  // ← NEW
 
 // ============================================================
 // 404

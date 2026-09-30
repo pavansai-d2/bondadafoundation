@@ -7,9 +7,17 @@
 // sp_scholarship_status_change itself (it SIGNALs a 45000 error
 // if the transition isn't configured). This means adding or
 // changing workflow rules is a data change, not a redeploy.
+//
+// NEW: After a successful status change to "approved" or
+// "rejected", a notification email is sent to the student.
+// The email is fire-and-forget — delivery failure never rolls
+// back the status change.
 // ============================================================
 
 import { changeApplicationStatus as changeApplicationStatusRepo } from "./scholarship.repository.js";
+import { getApplicationById } from "./scholarship.repository.js";
+import { sendScholarshipStatusEmail } from "../../utils/mailer.js";
+import { EMAIL_NOTIFICATION_STATUSES } from "./scholarship.constants.js";
 
 const REASON_REQUIRED_STATUSES = ["not_eligible", "rejected"];
 
@@ -54,6 +62,29 @@ export const changeApplicationStatus = async ({
     throw err;
   }
 
+  // ============================================================
+  // SEND STUDENT NOTIFICATION EMAIL
+  //
+  // Only fired for the final decision statuses (approved / rejected).
+  // Fire-and-forget: we do not await this, so a mail delivery
+  // failure never blocks the API response or rolls back the
+  // status change. Errors are logged by sendScholarshipStatusEmail.
+  // ============================================================
+
+  if (EMAIL_NOTIFICATION_STATUSES.includes(newStatus)) {
+    _sendStatusNotification({
+      applicationId,
+      newStatus,
+      reason,
+      remarks,
+    }).catch((err) => {
+      // Belt-and-suspenders: sendScholarshipStatusEmail already
+      // catches internally, but just in case something throws
+      // synchronously before that wrapper.
+      console.error("[workflow] Unexpected error in status notification fire-and-forget:", err);
+    });
+  }
+
   return {
     applicationId: result.application_id,
     oldStatus: result.old_status,
@@ -62,3 +93,38 @@ export const changeApplicationStatus = async ({
     remarks,
   };
 };
+
+// ============================================================
+// INTERNAL HELPER — fetch full application and send the email.
+// Separated so the main function stays clean.
+// ============================================================
+
+async function _sendStatusNotification({ applicationId, newStatus, reason, remarks }) {
+  try {
+    const appData = await getApplicationById(applicationId);
+
+    if (!appData) {
+      console.warn(`[workflow] Could not load application ${applicationId} for status email.`);
+      return;
+    }
+
+    const app = appData.application;
+
+    // sp_scholarship_application_get_by_id returns scholarship_subtitle
+    const scholarshipName = app.scholarship_subtitle
+      ? `${app.scholarship_name} (${app.scholarship_subtitle})`
+      : app.scholarship_name || "Bondada Foundation Scholarship";
+
+    await sendScholarshipStatusEmail({
+      studentName: app.full_name,
+      studentEmail: app.email,
+      applicationNumber: app.program_application_number || app.application_number,
+      scholarshipName,
+      newStatus,
+      reason,
+      remarks,
+    });
+  } catch (err) {
+    console.error(`[workflow] Failed to send status notification for application ${applicationId}:`, err);
+  }
+}

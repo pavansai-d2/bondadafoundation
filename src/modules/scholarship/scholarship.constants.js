@@ -1,7 +1,12 @@
+// ============================================================
+// SCHOLARSHIP CONSTANTS
 // Matches scholarshipConfig.js keys in the frontend exactly.
+// ============================================================
+
 export const SCHOLARSHIP_CODES = {
     DGK_SSC: "dgk-ssc",
     DGK_INTERMEDIATE: "dgk-intermediate",
+    DIPLOMA: "diploma",          // ← NEW: Diploma scholarship
     SRK: "srk",
     APJ: "apj",
     VIDYA_ASARA: "vidya-asara",
@@ -21,6 +26,10 @@ export const APPLICATION_STATUS = {
     REJECTED: "rejected",
     DISBURSED: "disbursed",
 };
+
+// Statuses that trigger a student notification email
+// (approved/rejected are the final decision statuses Kumar Sir requested)
+export const EMAIL_NOTIFICATION_STATUSES = ["approved", "rejected"];
 
 // Matches docsDetails.jsx upload fields exactly.
 export const DOCUMENT_TYPES = {
