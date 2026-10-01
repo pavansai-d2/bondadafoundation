@@ -189,23 +189,19 @@ export const createScholarshipApplication = async (data, files) => {
 
     applicationId = created.application_id;
 
-    // Upload all documents concurrently. If any upload fails, compensate by deleting
-    // successfully uploaded R2 objects and the just-created DB application.
-    const uploadResults = await Promise.allSettled(
-      fileEntries.map(async ({ documentType, file }) => {
-        const storedFile = await processIncomingFile(file, {
-          scholarshipProgramId: scholarship.id,
-          programApplicationNumber,
-          documentType,
-        });
-        storedDocuments.push(storedFile);
-        await insertDocument(applicationId, documentType, storedFile);
-      })
-    );
-
-    const failedUpload = uploadResults.find((result) => result.status === "rejected");
-    if (failedUpload) {
-      throw failedUpload.reason;
+    // Upload and insert documents SEQUENTIALLY (one at a time).
+    // Parallel inserts into scholarship_documents caused InnoDB
+    // deadlocks because multiple concurrent transactions competed
+    // for the same index locks on the same application row.
+    // Sequential insertion eliminates the deadlock entirely.
+    for (const { documentType, file } of fileEntries) {
+      const storedFile = await processIncomingFile(file, {
+        scholarshipProgramId: scholarship.id,
+        programApplicationNumber,
+        documentType,
+      });
+      storedDocuments.push(storedFile);
+      await insertDocument(applicationId, documentType, storedFile);
     }
 
     return {
