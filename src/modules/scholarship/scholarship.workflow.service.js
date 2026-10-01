@@ -1,17 +1,9 @@
 // ============================================================
 // SCHOLARSHIP WORKFLOW SERVICE
 //
-// Status transitions are no longer hardcoded here. The allowed
-// from -> to map lives in the `status_transition_rules` table
-// (database/02_config_seed.sql) and is enforced inside
-// sp_scholarship_status_change itself (it SIGNALs a 45000 error
-// if the transition isn't configured). This means adding or
-// changing workflow rules is a data change, not a redeploy.
-//
-// NEW: After a successful status change to "approved" or
-// "rejected", a notification email is sent to the student.
-// The email is fire-and-forget — delivery failure never rolls
-// back the status change.
+// After a successful status change to "approved" or "rejected",
+// a notification email is sent to the student's registered email.
+// Fire-and-forget — email failure never blocks the status change.
 // ============================================================
 
 import { changeApplicationStatus as changeApplicationStatusRepo } from "./scholarship.repository.js";
@@ -22,10 +14,10 @@ import { EMAIL_NOTIFICATION_STATUSES } from "./scholarship.constants.js";
 const REASON_REQUIRED_STATUSES = ["not_eligible", "rejected"];
 
 const REVIEW_TYPE_BY_STATUS = {
-  eligible: "eligibility_review",
+  eligible:     "eligibility_review",
   not_eligible: "eligibility_review",
-  approved: "final_approval",
-  disbursed: "disbursement",
+  approved:     "final_approval",
+  disbursed:    "disbursement",
 };
 
 export const changeApplicationStatus = async ({
@@ -53,8 +45,6 @@ export const changeApplicationStatus = async ({
       changedBy: adminId,
     });
   } catch (err) {
-    // sp_scholarship_status_change SIGNALs 45000 for:
-    // "Application not found." / "Invalid status transition..."
     if (err?.sqlState === "45000") {
       const message = err.sqlMessage || err.message || "";
       err.statusCode = message.includes("not found") ? 404 : 400;
@@ -64,67 +54,87 @@ export const changeApplicationStatus = async ({
 
   // ============================================================
   // SEND STUDENT NOTIFICATION EMAIL
-  //
-  // Only fired for the final decision statuses (approved / rejected).
-  // Fire-and-forget: we do not await this, so a mail delivery
-  // failure never blocks the API response or rolls back the
-  // status change. Errors are logged by sendScholarshipStatusEmail.
+  // Fires for "approved" and "rejected" status changes only.
+  // Completely non-blocking — errors are logged, never thrown.
   // ============================================================
 
   if (EMAIL_NOTIFICATION_STATUSES.includes(newStatus)) {
-    _sendStatusNotification({
-      applicationId,
-      newStatus,
-      reason,
-      remarks,
-    }).catch((err) => {
-      // Belt-and-suspenders: sendScholarshipStatusEmail already
-      // catches internally, but just in case something throws
-      // synchronously before that wrapper.
-      console.error("[workflow] Unexpected error in status notification fire-and-forget:", err);
+    console.log(`[workflow] Triggering status email for application ${applicationId} → ${newStatus}`);
+
+    // Use setImmediate so the HTTP response is sent first,
+    // then the email is attempted in the next event loop tick.
+    setImmediate(() => {
+      _sendStatusNotification({
+        applicationId,
+        newStatus,
+        reason,
+        remarks,
+      });
     });
   }
 
   return {
     applicationId: result.application_id,
-    oldStatus: result.old_status,
-    newStatus: result.new_status,
+    oldStatus:     result.old_status,
+    newStatus:     result.new_status,
     reason,
     remarks,
   };
 };
 
 // ============================================================
-// INTERNAL HELPER — fetch full application and send the email.
-// Separated so the main function stays clean.
+// INTERNAL — load application data then send the email
 // ============================================================
 
 async function _sendStatusNotification({ applicationId, newStatus, reason, remarks }) {
   try {
+    console.log(`[workflow] Loading application ${applicationId} for status notification email...`);
+
     const appData = await getApplicationById(applicationId);
 
     if (!appData) {
-      console.warn(`[workflow] Could not load application ${applicationId} for status email.`);
+      console.warn(`[workflow] Application ${applicationId} not found — email not sent.`);
       return;
     }
 
     const app = appData.application;
 
-    // sp_scholarship_application_get_by_id returns scholarship_subtitle
+    // Validate required fields before calling mailer
+    if (!app.email) {
+      console.warn(`[workflow] Application ${applicationId} has no email address — cannot send notification.`);
+      return;
+    }
+
+    if (!app.full_name) {
+      console.warn(`[workflow] Application ${applicationId} has no full_name — using "Applicant" as fallback.`);
+    }
+
     const scholarshipName = app.scholarship_subtitle
       ? `${app.scholarship_name} (${app.scholarship_subtitle})`
       : app.scholarship_name || "Bondada Foundation Scholarship";
 
-    await sendScholarshipStatusEmail({
-      studentName: app.full_name,
-      studentEmail: app.email,
-      applicationNumber: app.program_application_number || app.application_number,
+    const applicationNumber =
+      app.program_application_number || app.application_number || String(applicationId);
+
+    console.log(`[workflow] Sending ${newStatus} email to ${app.email} for ${applicationNumber}`);
+
+    const mailResult = await sendScholarshipStatusEmail({
+      studentName:       app.full_name || "Applicant",
+      studentEmail:      app.email,
+      applicationNumber,
       scholarshipName,
       newStatus,
       reason,
       remarks,
     });
+
+    if (mailResult.sent) {
+      console.log(`[workflow] ✅ Status email sent to ${app.email} (${applicationNumber})`);
+    } else {
+      console.error(`[workflow] ❌ Status email NOT sent to ${app.email} — reason: ${mailResult.reason}`);
+    }
+
   } catch (err) {
-    console.error(`[workflow] Failed to send status notification for application ${applicationId}:`, err);
+    console.error(`[workflow] ❌ Unexpected error sending status notification for application ${applicationId}:`, err);
   }
 }
