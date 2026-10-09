@@ -2,10 +2,13 @@
 // MAIL UTILITY — Bondada Foundation
 // From: bondadafoundationofficial@gmail.com
 //
-// Render env vars required:
+// Using port 587 (STARTTLS) because Render free tier
+// blocks port 465 (SSL) with ETIMEDOUT.
+//
+// Render env vars:
 //   SMTP_HOST     = smtp.gmail.com
-//   SMTP_PORT     = 465
-//   SMTP_SECURE   = true
+//   SMTP_PORT     = 587
+//   SMTP_SECURE   = false
 //   SMTP_USER     = bondadafoundationofficial@gmail.com
 //   SMTP_PASSWORD = (16-char Gmail App Password, no spaces)
 //   MAIL_FROM     = Bondada Foundation <bondadafoundationofficial@gmail.com>
@@ -32,9 +35,10 @@ const getTransporter = () => {
   console.log(`[mailer] Creating transporter → host:${env.mail.host} port:${env.mail.port} secure:${env.mail.secure} user:${env.mail.user}`);
 
   transporter = nodemailer.createTransport({
-    host: env.mail.host,
-    port: env.mail.port,
-    secure: env.mail.secure,   // true for port 465 (SSL)
+    host: env.mail.host,      // smtp.gmail.com
+    port: env.mail.port,      // 587
+    secure: env.mail.secure,  // false for port 587 (STARTTLS)
+    requireTLS: true,         // force STARTTLS upgrade on port 587
     auth: {
       user: env.mail.user,
       pass: env.mail.password,
@@ -91,37 +95,36 @@ export const sendScholarshipStatusEmail = async ({
   reason = null,
   remarks = null,
 }) => {
-  const isApproved  = newStatus === "approved";
+  const isApproved    = newStatus === "approved";
   const isNotEligible = newStatus === "not_eligible";
 
   let subject, statusLabel, statusBg, statusColor, bodyContent;
 
   if (isApproved) {
-    subject      = `Congratulations! Your Scholarship Has Been Approved — ${applicationNumber}`;
-    statusLabel  = "Approved ✅";
-    statusBg     = "#d4edda";
-    statusColor  = "#155724";
-    bodyContent  = `
+    subject     = `Congratulations! Your Scholarship Has Been Approved — ${applicationNumber}`;
+    statusLabel = "Approved ✅";
+    statusBg    = "#d4edda";
+    statusColor = "#155724";
+    bodyContent = `
       <p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
       <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct.</p>
       <p>If you have any queries, feel free to contact us.</p>`;
   } else if (isNotEligible) {
-    subject      = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel  = "Not Eligible ❌";
-    statusBg     = "#f8d7da";
-    statusColor  = "#721c24";
-    bodyContent  = `
+    subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
+    statusLabel = "Not Eligible ❌";
+    statusBg    = "#f8d7da";
+    statusColor = "#721c24";
+    bodyContent = `
       <p>Thank you for applying to the Bondada Foundation scholarship programme.</p>
       <p>After careful review, we regret to inform you that your application has been marked as <strong>not eligible</strong> for this cycle.</p>
       ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
-      <p>We encourage you to reapply in the future. If you have any questions, please do not hesitate to contact us.</p>`;
+      <p>We encourage you to reapply in the future. If you have any questions, please contact us.</p>`;
   } else {
-    // fallback for any other status
-    subject      = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel  = newStatus;
-    statusBg     = "#e2e3e5";
-    statusColor  = "#383d41";
-    bodyContent  = `<p>Your application status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>`;
+    subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
+    statusLabel = newStatus;
+    statusBg    = "#e2e3e5";
+    statusColor = "#383d41";
+    bodyContent = `<p>Your application status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>`;
   }
 
   const remarksBlock = remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "";
@@ -186,9 +189,12 @@ export const sendScholarshipStatusEmail = async ({
 // ============================================================
 
 export const sendDonationReceiptEmail = async ({
-  donorName, donorEmail, amount, cause, transactionId, paymentDate, orderId = null, mobile = null,
+  donorName, donorEmail, amount, cause, transactionId,
+  paymentDate, orderId = null, mobile = null,
 }) => {
-  const fmt = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+  const fmt = new Intl.NumberFormat("en-IN", {
+    style: "currency", currency: "INR", maximumFractionDigits: 0,
+  }).format(amount);
   const subject = `Donation Receipt — ${fmt} — Bondada Foundation`;
 
   const html = `<!DOCTYPE html>
@@ -230,10 +236,15 @@ export const sendDonationReceiptEmail = async ({
 </div>
 </body></html>`;
 
-  return sendMail({ to: donorEmail, subject, html, text: `Dear ${donorName},\nDonation of ${fmt} received.\nCause: ${cause}\nTxn: ${transactionId}\nDate: ${paymentDate}\n\nBondada Foundation` });
+  return sendMail({
+    to: donorEmail, subject, html,
+    text: `Dear ${donorName},\nDonation of ${fmt} received.\nCause: ${cause}\nTxn: ${transactionId}\nDate: ${paymentDate}\n\nBondada Foundation`,
+  });
 };
 
 const escapeHtml = (str) =>
-  String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  String(str ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default { sendMail, sendScholarshipStatusEmail, sendDonationReceiptEmail };
