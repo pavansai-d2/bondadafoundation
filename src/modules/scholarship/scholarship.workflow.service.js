@@ -1,9 +1,9 @@
 // ============================================================
 // SCHOLARSHIP WORKFLOW SERVICE
 //
-// After a successful status change to "approved" or "rejected",
-// a notification email is sent to the student's registered email.
-// Fire-and-forget — email failure never blocks the status change.
+// Sends notification email to student when status changes to
+// "approved" or "not_eligible" (as per requirement).
+// Fire-and-forget — email failure never blocks status change.
 // ============================================================
 
 import { changeApplicationStatus as changeApplicationStatusRepo } from "./scholarship.repository.js";
@@ -11,6 +11,7 @@ import { getApplicationById } from "./scholarship.repository.js";
 import { sendScholarshipStatusEmail } from "../../utils/mailer.js";
 import { EMAIL_NOTIFICATION_STATUSES } from "./scholarship.constants.js";
 
+// reason is REQUIRED for not_eligible (admin must explain why)
 const REASON_REQUIRED_STATUSES = ["not_eligible", "rejected"];
 
 const REVIEW_TYPE_BY_STATUS = {
@@ -53,16 +54,13 @@ export const changeApplicationStatus = async ({
   }
 
   // ============================================================
-  // SEND STUDENT NOTIFICATION EMAIL
-  // Fires for "approved" and "rejected" status changes only.
-  // Completely non-blocking — errors are logged, never thrown.
+  // SEND EMAIL — fires for "approved" and "not_eligible" only
+  // setImmediate sends HTTP response first, email second
   // ============================================================
 
   if (EMAIL_NOTIFICATION_STATUSES.includes(newStatus)) {
     console.log(`[workflow] Triggering status email for application ${applicationId} → ${newStatus}`);
 
-    // Use setImmediate so the HTTP response is sent first,
-    // then the email is attempted in the next event loop tick.
     setImmediate(() => {
       _sendStatusNotification({
         applicationId,
@@ -83,30 +81,25 @@ export const changeApplicationStatus = async ({
 };
 
 // ============================================================
-// INTERNAL — load application data then send the email
+// INTERNAL — fetch application details then send the email
 // ============================================================
 
 async function _sendStatusNotification({ applicationId, newStatus, reason, remarks }) {
   try {
-    console.log(`[workflow] Loading application ${applicationId} for status notification email...`);
+    console.log(`[workflow] Loading application ${applicationId} for email...`);
 
     const appData = await getApplicationById(applicationId);
 
     if (!appData) {
-      console.warn(`[workflow] Application ${applicationId} not found — email not sent.`);
+      console.warn(`[workflow] Application ${applicationId} not found — email skipped.`);
       return;
     }
 
     const app = appData.application;
 
-    // Validate required fields before calling mailer
     if (!app.email) {
-      console.warn(`[workflow] Application ${applicationId} has no email address — cannot send notification.`);
+      console.warn(`[workflow] Application ${applicationId} has no email — cannot send.`);
       return;
-    }
-
-    if (!app.full_name) {
-      console.warn(`[workflow] Application ${applicationId} has no full_name — using "Applicant" as fallback.`);
     }
 
     const scholarshipName = app.scholarship_subtitle
@@ -116,7 +109,7 @@ async function _sendStatusNotification({ applicationId, newStatus, reason, remar
     const applicationNumber =
       app.program_application_number || app.application_number || String(applicationId);
 
-    console.log(`[workflow] Sending ${newStatus} email to ${app.email} for ${applicationNumber}`);
+    console.log(`[workflow] Sending "${newStatus}" email to ${app.email} — ${applicationNumber}`);
 
     const mailResult = await sendScholarshipStatusEmail({
       studentName:       app.full_name || "Applicant",
@@ -129,12 +122,12 @@ async function _sendStatusNotification({ applicationId, newStatus, reason, remar
     });
 
     if (mailResult.sent) {
-      console.log(`[workflow] ✅ Status email sent to ${app.email} (${applicationNumber})`);
+      console.log(`[workflow] ✅ Email sent to ${app.email} (${applicationNumber})`);
     } else {
-      console.error(`[workflow] ❌ Status email NOT sent to ${app.email} — reason: ${mailResult.reason}`);
+      console.error(`[workflow] ❌ Email FAILED to ${app.email} — reason: ${mailResult.reason}`);
     }
 
   } catch (err) {
-    console.error(`[workflow] ❌ Unexpected error sending status notification for application ${applicationId}:`, err);
+    console.error(`[workflow] ❌ Unexpected error for application ${applicationId}:`, err.message);
   }
 }

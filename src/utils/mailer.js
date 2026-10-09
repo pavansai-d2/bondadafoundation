@@ -1,25 +1,14 @@
 // ============================================================
 // MAIL UTILITY — Bondada Foundation
+// From: bondadafoundationofficial@gmail.com
 //
-// Sending from: bondadafoundationofficial@gmail.com (Gmail)
-//
-// Gmail SMTP requires an App Password (NOT the normal Gmail
-// login password). Steps to generate one:
-//   1. Go to myaccount.google.com
-//   2. Security → 2-Step Verification → turn ON
-//   3. Security → App Passwords
-//   4. Select app: Mail, Select device: Other → type "Bondada"
-//   5. Copy the 16-character password (e.g. abcd efgh ijkl mnop)
-//   6. Paste it as SMTP_PASSWORD in .env (no spaces needed)
-//
-// .env settings to use:
-//   SMTP_HOST=smtp.gmail.com
-//   SMTP_PORT=465
-//   SMTP_SECURE=true
-//   SMTP_USER=bondadafoundationofficial@gmail.com
-//   SMTP_PASSWORD=your-16-char-app-password
-//   MAIL_FROM=Bondada Foundation <bondadafoundationofficial@gmail.com>
-//   CONTACT_RECEIVER_EMAIL=bondadafoundationofficial@gmail.com
+// Render env vars required:
+//   SMTP_HOST     = smtp.gmail.com
+//   SMTP_PORT     = 465
+//   SMTP_SECURE   = true
+//   SMTP_USER     = bondadafoundationofficial@gmail.com
+//   SMTP_PASSWORD = (16-char Gmail App Password, no spaces)
+//   MAIL_FROM     = Bondada Foundation <bondadafoundationofficial@gmail.com>
 // ============================================================
 
 import nodemailer from "nodemailer";
@@ -28,35 +17,34 @@ import env from "../config/env.js";
 let transporter = null;
 let transporterKey = null;
 
-const buildTransporterKey = () =>
+const buildKey = () =>
   [env.mail.host, env.mail.port, env.mail.secure, env.mail.user, env.mail.password].join("|");
 
 const getTransporter = () => {
   if (!env.mail.host || !env.mail.user || !env.mail.password) {
-    console.warn("[mailer] SMTP not configured — SMTP_HOST, SMTP_USER or SMTP_PASSWORD missing.");
+    console.warn("[mailer] ❌ SMTP not configured. Check SMTP_HOST, SMTP_USER, SMTP_PASSWORD on Render.");
     return null;
   }
 
-  const key = buildTransporterKey();
-  if (transporter && transporterKey === key) {
-    return transporter;
-  }
+  const key = buildKey();
+  if (transporter && transporterKey === key) return transporter;
 
-  // Gmail: port 465 with secure:true (SSL) — no STARTTLS needed
+  console.log(`[mailer] Creating transporter → host:${env.mail.host} port:${env.mail.port} secure:${env.mail.secure} user:${env.mail.user}`);
+
   transporter = nodemailer.createTransport({
-    host: env.mail.host,       // smtp.gmail.com
-    port: env.mail.port,       // 465
-    secure: env.mail.secure,   // true for port 465
+    host: env.mail.host,
+    port: env.mail.port,
+    secure: env.mail.secure,   // true for port 465 (SSL)
     auth: {
-      user: env.mail.user,     // bondadafoundationofficial@gmail.com
-      pass: env.mail.password, // 16-char App Password
+      user: env.mail.user,
+      pass: env.mail.password,
     },
     tls: {
       rejectUnauthorized: false,
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
 
   transporterKey = key;
@@ -64,50 +52,34 @@ const getTransporter = () => {
 };
 
 // ============================================================
-// CORE SEND — never throws. Returns { sent: boolean, reason? }
+// CORE SEND
 // ============================================================
 
-export const sendMail = async ({ to, subject, text, html, replyTo }) => {
-  const activeTransporter = getTransporter();
-
-  if (!activeTransporter) {
-    return { sent: false, reason: "smtp_not_configured" };
-  }
+export const sendMail = async ({ to, subject, text, html }) => {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: "smtp_not_configured" };
 
   try {
-    console.log(`[mailer] Sending email → To: ${to} | Subject: "${subject}"`);
-
-    const info = await activeTransporter.sendMail({
-      from: env.mail.from,
-      to,
-      subject,
-      text,
-      html,
-      replyTo,
-    });
-
-    console.log(`[mailer] ✅ Email sent → ${to} | MessageId: ${info.messageId}`);
+    console.log(`[mailer] Sending → ${to} | "${subject}"`);
+    const info = await t.sendMail({ from: env.mail.from, to, subject, text, html });
+    console.log(`[mailer] ✅ Sent → ${to} | msgId: ${info.messageId}`);
     return { sent: true, messageId: info.messageId };
-
-  } catch (error) {
-    console.error(`[mailer] ❌ Failed to send email → ${to}`, {
-      message: error.message,
-      code: error.code,
-      responseCode: error.responseCode,
-      response: error.response,
+  } catch (err) {
+    console.error(`[mailer] ❌ Failed → ${to}`, {
+      message: err.message,
+      code: err.code,
+      responseCode: err.responseCode,
+      response: err.response,
     });
-    // Reset transporter so next attempt creates a fresh connection
     transporter = null;
     transporterKey = null;
-    return { sent: false, reason: error.message };
+    return { sent: false, reason: err.message };
   }
 };
 
 // ============================================================
-// SCHOLARSHIP STATUS NOTIFICATION
-//
-// Sent to the student when their application status changes to
-// "approved" or "rejected".
+// SCHOLARSHIP STATUS EMAIL
+// Triggered on: "approved" and "not_eligible"
 // ============================================================
 
 export const sendScholarshipStatusEmail = async ({
@@ -119,45 +91,61 @@ export const sendScholarshipStatusEmail = async ({
   reason = null,
   remarks = null,
 }) => {
-  const isApproved = newStatus === "approved";
+  const isApproved  = newStatus === "approved";
+  const isNotEligible = newStatus === "not_eligible";
 
-  const subject = isApproved
-    ? `Congratulations! Your Scholarship Application Has Been Approved — ${applicationNumber}`
-    : `Update on Your Scholarship Application — ${applicationNumber}`;
+  let subject, statusLabel, statusBg, statusColor, bodyContent;
 
-  const statusLabel   = isApproved ? "Approved ✅" : "Rejected ❌";
-  const statusBg      = isApproved ? "#d4edda" : "#f8d7da";
-  const statusColor   = isApproved ? "#155724" : "#721c24";
-  const reasonBlock   = reason  ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>`  : "";
-  const remarksBlock  = remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "";
+  if (isApproved) {
+    subject      = `Congratulations! Your Scholarship Has Been Approved — ${applicationNumber}`;
+    statusLabel  = "Approved ✅";
+    statusBg     = "#d4edda";
+    statusColor  = "#155724";
+    bodyContent  = `
+      <p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
+      <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct.</p>
+      <p>If you have any queries, feel free to contact us.</p>`;
+  } else if (isNotEligible) {
+    subject      = `Update on Your Scholarship Application — ${applicationNumber}`;
+    statusLabel  = "Not Eligible ❌";
+    statusBg     = "#f8d7da";
+    statusColor  = "#721c24";
+    bodyContent  = `
+      <p>Thank you for applying to the Bondada Foundation scholarship programme.</p>
+      <p>After careful review, we regret to inform you that your application has been marked as <strong>not eligible</strong> for this cycle.</p>
+      ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
+      <p>We encourage you to reapply in the future. If you have any questions, please do not hesitate to contact us.</p>`;
+  } else {
+    // fallback for any other status
+    subject      = `Update on Your Scholarship Application — ${applicationNumber}`;
+    statusLabel  = newStatus;
+    statusBg     = "#e2e3e5";
+    statusColor  = "#383d41";
+    bodyContent  = `<p>Your application status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>`;
+  }
 
-  const bodyContent = isApproved
-    ? `<p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
-       <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct. If you have any queries, feel free to contact us.</p>`
-    : `<p>Thank you for applying to the Bondada Foundation scholarship programme. After careful review, we regret to inform you that your application has <strong>not been selected</strong> for this cycle.</p>
-       ${reasonBlock}
-       <p>We encourage you to apply again in the future. If you have any questions, please do not hesitate to contact us.</p>`;
+  const remarksBlock = remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>${subject}</title>
-  <style>
-    body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0;}
-    .wrap{max-width:620px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);}
-    .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
-    .hdr h1{margin:0;font-size:22px;}
-    .hdr p{margin:6px 0 0;font-size:13px;opacity:.85;}
-    .bdy{padding:28px 32px;color:#333;line-height:1.7;}
-    .badge{display:inline-block;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:14px;margin-bottom:18px;background:${statusBg};color:${statusColor};}
-    table{width:100%;border-collapse:collapse;margin:18px 0;}
-    td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
-    td:first-child{color:#666;width:45%;}
-    .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
-    .ftr a{color:#1a3c6e;text-decoration:none;}
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>${subject}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0;}
+  .wrap{max-width:620px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
+  .hdr h1{margin:0;font-size:22px;}
+  .hdr p{margin:6px 0 0;font-size:13px;opacity:.85;}
+  .bdy{padding:28px 32px;color:#333;line-height:1.7;}
+  .badge{display:inline-block;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:14px;margin-bottom:18px;background:${statusBg};color:${statusColor};}
+  table{width:100%;border-collapse:collapse;margin:18px 0;}
+  td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
+  td:first-child{color:#666;width:45%;}
+  .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
+  .ftr a{color:#1a3c6e;text-decoration:none;}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -175,9 +163,7 @@ export const sendScholarshipStatusEmail = async ({
       <tr><td>Status</td><td><strong>${statusLabel}</strong></td></tr>
     </table>
     ${remarksBlock}
-    <p>For any questions, contact us at
-      <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>
-    </p>
+    <p>For queries: <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a></p>
     <p>Warm regards,<br/><strong>Bondada Foundation Team</strong></p>
   </div>
   <div class="ftr">
@@ -189,28 +175,8 @@ export const sendScholarshipStatusEmail = async ({
 </html>`;
 
   const text = isApproved
-    ? `Dear ${studentName},
-
-Congratulations! Your scholarship application (${applicationNumber}) for ${scholarshipName} has been APPROVED.
-
-The scholarship amount will be disbursed to your registered bank account.
-
-For queries: bondadafoundationofficial@gmail.com
-
-Warm regards,
-Bondada Foundation Team`
-    : `Dear ${studentName},
-
-Thank you for applying for the ${scholarshipName} scholarship.
-
-We regret to inform you that your application (${applicationNumber}) has not been selected for this cycle.
-${reason ? "\nReason: " + reason : ""}
-
-We encourage you to apply again in the future.
-For queries: bondadafoundationofficial@gmail.com
-
-Warm regards,
-Bondada Foundation Team`;
+    ? `Dear ${studentName},\n\nCongratulations! Your scholarship application (${applicationNumber}) for ${scholarshipName} has been APPROVED.\n\nThe amount will be disbursed to your bank account.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`
+    : `Dear ${studentName},\n\nYour application (${applicationNumber}) for ${scholarshipName} has been marked as NOT ELIGIBLE.\n\n${reason ? "Reason: " + reason + "\n\n" : ""}We encourage you to reapply.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`;
 
   return sendMail({ to: studentEmail, subject, html, text });
 };
@@ -220,98 +186,54 @@ Bondada Foundation Team`;
 // ============================================================
 
 export const sendDonationReceiptEmail = async ({
-  donorName,
-  donorEmail,
-  amount,
-  cause,
-  transactionId,
-  paymentDate,
-  orderId = null,
-  mobile = null,
+  donorName, donorEmail, amount, cause, transactionId, paymentDate, orderId = null, mobile = null,
 }) => {
-  const formattedAmount = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-
-  const subject = `Donation Receipt — ${formattedAmount} — Bondada Foundation`;
+  const fmt = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+  const subject = `Donation Receipt — ${fmt} — Bondada Foundation`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>${subject}</title>
-  <style>
-    body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0;}
-    .wrap{max-width:620px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);}
-    .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
-    .hdr h1{margin:0;font-size:22px;}
-    .hdr p{margin:6px 0 0;font-size:13px;opacity:.85;}
-    .bdy{padding:28px 32px;color:#333;line-height:1.7;}
-    .amt-box{background:#eaf4e8;border-left:4px solid #2e7d32;padding:14px 20px;border-radius:4px;margin:18px 0;}
-    .amt-box .amt{font-size:28px;font-weight:bold;color:#2e7d32;}
-    .amt-box .lbl{font-size:12px;color:#555;margin-top:4px;}
-    table{width:100%;border-collapse:collapse;margin:18px 0;}
-    td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
-    td:first-child{color:#666;width:45%;}
-    .note{font-size:12px;color:#888;margin-top:20px;padding:12px 16px;background:#fafafa;border-radius:4px;}
-    .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
-    .ftr a{color:#1a3c6e;text-decoration:none;}
-  </style>
+<head><meta charset="UTF-8"/><title>${subject}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0;}
+  .wrap{max-width:620px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;}
+  .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
+  .hdr h1{margin:0;font-size:22px;}
+  .bdy{padding:28px 32px;color:#333;line-height:1.7;}
+  .amt{font-size:28px;font-weight:bold;color:#2e7d32;background:#eaf4e8;border-left:4px solid #2e7d32;padding:14px 20px;border-radius:4px;margin:18px 0;}
+  table{width:100%;border-collapse:collapse;margin:18px 0;}
+  td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
+  td:first-child{color:#666;width:45%;}
+  .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
+</style>
 </head>
 <body>
 <div class="wrap">
-  <div class="hdr">
-    <h1>Bondada Foundation</h1>
-    <p>Official Donation Receipt</p>
-  </div>
+  <div class="hdr"><h1>Bondada Foundation</h1><p>Official Donation Receipt</p></div>
   <div class="bdy">
     <p>Dear <strong>${escapeHtml(donorName)}</strong>,</p>
-    <p>Thank you for your generous contribution to the Bondada Foundation. Your support makes a meaningful difference.</p>
-    <div class="amt-box">
-      <div class="amt">${formattedAmount}</div>
-      <div class="lbl">Donation received successfully</div>
-    </div>
+    <p>Thank you for your generous contribution.</p>
+    <div class="amt">${fmt}</div>
     <table>
-      <tr><td>Donor Name</td><td><strong>${escapeHtml(donorName)}</strong></td></tr>
+      <tr><td>Donor Name</td><td>${escapeHtml(donorName)}</td></tr>
       ${mobile ? `<tr><td>Phone</td><td>${escapeHtml(mobile)}</td></tr>` : ""}
-      <tr><td>Donation Amount</td><td><strong>${formattedAmount}</strong></td></tr>
+      <tr><td>Amount</td><td><strong>${fmt}</strong></td></tr>
       <tr><td>Cause</td><td>${escapeHtml(cause)}</td></tr>
-      <tr><td>Transaction ID</td><td><code>${escapeHtml(transactionId)}</code></td></tr>
+      <tr><td>Transaction ID</td><td>${escapeHtml(transactionId)}</td></tr>
       ${orderId ? `<tr><td>Order ID</td><td>${escapeHtml(orderId)}</td></tr>` : ""}
       <tr><td>Payment Date</td><td>${escapeHtml(paymentDate)}</td></tr>
-      <tr><td>Payment Mode</td><td>Online (Razorpay)</td></tr>
+      <tr><td>Mode</td><td>Online (Razorpay)</td></tr>
     </table>
-    <div class="note">
-      Please keep this email as your official donation receipt.
-      For queries: <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>
-    </div>
     <p>With gratitude,<br/><strong>Bondada Foundation Team</strong></p>
   </div>
-  <div class="ftr">
-    &copy; ${new Date().getFullYear()} Bondada Foundation &nbsp;|&nbsp;
-    <a href="https://bondadafoundation.org">bondadafoundation.org</a>
-  </div>
+  <div class="ftr">&copy; ${new Date().getFullYear()} Bondada Foundation</div>
 </div>
-</body>
-</html>`;
+</body></html>`;
 
-  const text = `Dear ${donorName},\n\nThank you for your donation!\n\nAmount: ${formattedAmount}\nCause: ${cause}\nTransaction ID: ${transactionId}\nPayment Date: ${paymentDate}\n\nBondada Foundation Team`;
-
-  return sendMail({ to: donorEmail, subject, html, text });
+  return sendMail({ to: donorEmail, subject, html, text: `Dear ${donorName},\nDonation of ${fmt} received.\nCause: ${cause}\nTxn: ${transactionId}\nDate: ${paymentDate}\n\nBondada Foundation` });
 };
 
-// ============================================================
-// HELPER — HTML escape
-// ============================================================
-
 const escapeHtml = (str) =>
-  String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  String(str ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export default { sendMail, sendScholarshipStatusEmail, sendDonationReceiptEmail };
