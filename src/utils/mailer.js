@@ -1,82 +1,86 @@
 // ============================================================
 // MAIL UTILITY — Bondada Foundation
-// From: bondadafoundationofficial@gmail.com
+// Using Resend API (https://resend.com) — works on Render free
+// tier because it uses HTTPS (port 443), not SMTP.
 //
-// Using port 587 (STARTTLS) because Render free tier
-// blocks port 465 (SSL) with ETIMEDOUT.
+// Render blocks all SMTP ports (465, 587) on free plans.
+// Resend sends via HTTP API — no SMTP ports needed.
 //
-// Render env vars:
-//   SMTP_HOST     = smtp.gmail.com
-//   SMTP_PORT     = 587
-//   SMTP_SECURE   = false
-//   SMTP_USER     = bondadafoundationofficial@gmail.com
-//   SMTP_PASSWORD = (16-char Gmail App Password, no spaces)
-//   MAIL_FROM     = Bondada Foundation <bondadafoundationofficial@gmail.com>
+// SETUP (one time — 5 minutes):
+//   1. Go to resend.com → Sign up free
+//   2. Dashboard → API Keys → Create API Key → copy it
+//   3. On Render → Environment → add:
+//        RESEND_API_KEY = re_xxxxxxxxxxxxxxxxxx
+//   4. That's it — no other SMTP vars needed for sending
+//
+// Free plan: 3,000 emails/month, 100/day — more than enough
+//
+// NOTE: Resend requires a verified domain OR you can send
+// from onboarding@resend.dev while testing. To send from
+// bondadafoundationofficial@gmail.com you need to either:
+//   Option A: Add Gmail as a custom domain (not possible with Gmail)
+//   Option B: Use a domain you own e.g. bondadafoundation.org
+//             → verify it on Resend → send from
+//             noreply@bondadafoundation.org
+//   Option C: During testing use onboarding@resend.dev as FROM
+//             (recipient still gets the email, just from that address)
+//
+// RECOMMENDED: Use noreply@bondadafoundation.org as MAIL_FROM
+// since you already own bondadafoundation.org domain.
+// Verify it on Resend dashboard → Domains → Add Domain.
 // ============================================================
 
-import nodemailer from "nodemailer";
 import env from "../config/env.js";
 
-let transporter = null;
-let transporterKey = null;
-
-const buildKey = () =>
-  [env.mail.host, env.mail.port, env.mail.secure, env.mail.user, env.mail.password].join("|");
-
-const getTransporter = () => {
-  if (!env.mail.host || !env.mail.user || !env.mail.password) {
-    console.warn("[mailer] ❌ SMTP not configured. Check SMTP_HOST, SMTP_USER, SMTP_PASSWORD on Render.");
-    return null;
-  }
-
-  const key = buildKey();
-  if (transporter && transporterKey === key) return transporter;
-
-  console.log(`[mailer] Creating transporter → host:${env.mail.host} port:${env.mail.port} secure:${env.mail.secure} user:${env.mail.user}`);
-
-  transporter = nodemailer.createTransport({
-    host: env.mail.host,      // smtp.gmail.com
-    port: env.mail.port,      // 587
-    secure: env.mail.secure,  // false for port 587 (STARTTLS)
-    requireTLS: true,         // force STARTTLS upgrade on port 587
-    auth: {
-      user: env.mail.user,
-      pass: env.mail.password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-  });
-
-  transporterKey = key;
-  return transporter;
-};
-
 // ============================================================
-// CORE SEND
+// CORE SEND via Resend HTTP API
+// No nodemailer needed — pure fetch call to Resend's API
 // ============================================================
 
 export const sendMail = async ({ to, subject, text, html }) => {
-  const t = getTransporter();
-  if (!t) return { sent: false, reason: "smtp_not_configured" };
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    console.warn("[mailer] ❌ RESEND_API_KEY not set on Render environment.");
+    return { sent: false, reason: "resend_api_key_missing" };
+  }
+
+  const fromAddress = env.mail.from ||
+    "Bondada Foundation <noreply@bondadafoundation.org>";
 
   try {
-    console.log(`[mailer] Sending → ${to} | "${subject}"`);
-    const info = await t.sendMail({ from: env.mail.from, to, subject, text, html });
-    console.log(`[mailer] ✅ Sent → ${to} | msgId: ${info.messageId}`);
-    return { sent: true, messageId: info.messageId };
-  } catch (err) {
-    console.error(`[mailer] ❌ Failed → ${to}`, {
-      message: err.message,
-      code: err.code,
-      responseCode: err.responseCode,
-      response: err.response,
+    console.log(`[mailer] Sending via Resend → ${to} | "${subject}"`);
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [to],
+        subject,
+        html,
+        text,
+      }),
     });
-    transporter = null;
-    transporterKey = null;
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`[mailer] ❌ Resend API error → ${to}`, {
+        status: response.status,
+        error: data,
+      });
+      return { sent: false, reason: data?.message || `HTTP ${response.status}` };
+    }
+
+    console.log(`[mailer] ✅ Sent via Resend → ${to} | id: ${data.id}`);
+    return { sent: true, messageId: data.id };
+
+  } catch (err) {
+    console.error(`[mailer] ❌ Failed → ${to}`, { message: err.message });
     return { sent: false, reason: err.message };
   }
 };
@@ -127,7 +131,9 @@ export const sendScholarshipStatusEmail = async ({
     bodyContent = `<p>Your application status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>`;
   }
 
-  const remarksBlock = remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : "";
+  const remarksBlock = remarks
+    ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -166,7 +172,9 @@ export const sendScholarshipStatusEmail = async ({
       <tr><td>Status</td><td><strong>${statusLabel}</strong></td></tr>
     </table>
     ${remarksBlock}
-    <p>For queries: <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a></p>
+    <p>For queries:
+      <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>
+    </p>
     <p>Warm regards,<br/><strong>Bondada Foundation Team</strong></p>
   </div>
   <div class="ftr">
@@ -178,7 +186,7 @@ export const sendScholarshipStatusEmail = async ({
 </html>`;
 
   const text = isApproved
-    ? `Dear ${studentName},\n\nCongratulations! Your scholarship application (${applicationNumber}) for ${scholarshipName} has been APPROVED.\n\nThe amount will be disbursed to your bank account.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`
+    ? `Dear ${studentName},\n\nCongratulations! Your application (${applicationNumber}) for ${scholarshipName} has been APPROVED.\n\nThe amount will be disbursed to your bank account.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`
     : `Dear ${studentName},\n\nYour application (${applicationNumber}) for ${scholarshipName} has been marked as NOT ELIGIBLE.\n\n${reason ? "Reason: " + reason + "\n\n" : ""}We encourage you to reapply.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`;
 
   return sendMail({ to: studentEmail, subject, html, text });
@@ -195,6 +203,7 @@ export const sendDonationReceiptEmail = async ({
   const fmt = new Intl.NumberFormat("en-IN", {
     style: "currency", currency: "INR", maximumFractionDigits: 0,
   }).format(amount);
+
   const subject = `Donation Receipt — ${fmt} — Bondada Foundation`;
 
   const html = `<!DOCTYPE html>
