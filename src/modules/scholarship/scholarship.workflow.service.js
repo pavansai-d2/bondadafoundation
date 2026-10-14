@@ -11,7 +11,7 @@ import { getApplicationById } from "./scholarship.repository.js";
 import { sendScholarshipStatusEmail } from "../../utils/mailer.js";
 import { EMAIL_NOTIFICATION_STATUSES } from "./scholarship.constants.js";
 
-// reason is REQUIRED for not_eligible (admin must explain why)
+// reason is REQUIRED for rejected (admin must explain why)
 const REASON_REQUIRED_STATUSES = ["not_eligible", "rejected"];
 
 const REVIEW_TYPE_BY_STATUS = {
@@ -54,7 +54,7 @@ export const changeApplicationStatus = async ({
   }
 
   // ============================================================
-  // SEND EMAIL — fires for "approved" and "not_eligible" only
+  // SEND EMAIL — fires for "approved" and "rejected" only
   // setImmediate sends HTTP response first, email second
   // ============================================================
 

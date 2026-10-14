@@ -87,7 +87,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
 
 // ============================================================
 // SCHOLARSHIP STATUS EMAIL
-// Triggered on: "approved" and "not_eligible"
+// Triggered on: "approved" and "rejected"
 // ============================================================
 
 export const sendScholarshipStatusEmail = async ({
@@ -99,8 +99,8 @@ export const sendScholarshipStatusEmail = async ({
   reason = null,
   remarks = null,
 }) => {
-  const isApproved    = newStatus === "approved";
-  const isNotEligible = newStatus === "reject";
+  const isApproved = newStatus === "approved";
+  const isRejected = newStatus === "rejected";
 
   let subject, statusLabel, statusBg, statusColor, bodyContent;
 
@@ -113,14 +113,14 @@ export const sendScholarshipStatusEmail = async ({
       <p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
       <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct.</p>
       <p>If you have any queries, feel free to contact us.</p>`;
-  } else if (isReject) {
+  } else if (isRejected) {
     subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel = "is Rejected ❌";
+    statusLabel = "Rejected ❌";
     statusBg    = "#f8d7da";
     statusColor = "#721c24";
     bodyContent = `
       <p>Thank you for applying to the Bondada Foundation scholarship programme.</p>
-      <p>After careful review, we regret to inform you that your application has been marked as <strong>not eligible</strong> for this cycle.</p>
+      <p>After careful review, we regret to inform you that your application has been <strong>rejected</strong> for this cycle.</p>
       ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
       <p>We encourage you to reapply in the future. If you have any questions, please contact us.</p>`;
   } else {
@@ -187,7 +187,7 @@ export const sendScholarshipStatusEmail = async ({
 
   const text = isApproved
     ? `Dear ${studentName},\n\nCongratulations! Your application (${applicationNumber}) for ${scholarshipName} has been APPROVED.\n\nThe amount will be disbursed to your bank account.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`
-    : `Dear ${studentName},\n\nYour application (${applicationNumber}) for ${scholarshipName} has been marked as NOT ELIGIBLE.\n\n${reason ? "Reason: " + reason + "\n\n" : ""}We encourage you to reapply.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`;
+    : `Dear ${studentName},\n\nYour application (${applicationNumber}) for ${scholarshipName} has been REJECTED.\n\n${reason ? "Reason: " + reason + "\n\n" : ""}We encourage you to reapply in the future.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`;
 
   return sendMail({ to: studentEmail, subject, html, text });
 };
