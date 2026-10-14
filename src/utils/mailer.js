@@ -100,7 +100,7 @@ export const sendScholarshipStatusEmail = async ({
   remarks = null,
 }) => {
   const isApproved    = newStatus === "approved";
-  const isNotEligible = newStatus === "not_eligible";
+  const isNotEligible = newStatus === "reject";
 
   let subject, statusLabel, statusBg, statusColor, bodyContent;
 
@@ -113,9 +113,9 @@ export const sendScholarshipStatusEmail = async ({
       <p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
       <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct.</p>
       <p>If you have any queries, feel free to contact us.</p>`;
-  } else if (isNotEligible) {
+  } else if (isReject) {
     subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel = "Not Eligible ❌";
+    statusLabel = "is Rejected ❌";
     statusBg    = "#f8d7da";
     statusColor = "#721c24";
     bodyContent = `
