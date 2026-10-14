@@ -24,7 +24,7 @@ export const APPLICATION_STATUS = {
 
 // ✅ UPDATED: Send email when status changes to "approved" OR "not_eligible"
 // (not_eligible = student did not qualify, approved = student selected)
-export const EMAIL_NOTIFICATION_STATUSES = ["approved", "not_eligible"];
+export const EMAIL_NOTIFICATION_STATUSES = ["approved", "not_eligible", "rejected"];
 
 export const DOCUMENT_TYPES = {
     AADHAAR: "aadhaar",
