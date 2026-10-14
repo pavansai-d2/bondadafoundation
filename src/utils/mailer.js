@@ -119,7 +119,7 @@ export const sendScholarshipStatusEmail = async ({
     statusBg    = "#f8d7da";
     statusColor = "#721c24";
     bodyContent = `
-      <p>Thank you for applying to the Bondada Foundation scholarship programme.</p>
+      <p>Thank you for applying to the Bondada Nirmalavathi scholarship.</p>
       <p>After careful review, we regret to inform you that your application has been <strong>rejected</strong> for this cycle.</p>
       ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
       <p>We encourage you to reapply in the future. If you have any questions, please contact us.</p>`;
