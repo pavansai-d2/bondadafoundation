@@ -6,35 +6,15 @@
 // Render blocks all SMTP ports (465, 587) on free plans.
 // Resend sends via HTTP API — no SMTP ports needed.
 //
-// SETUP (one time — 5 minutes):
-//   1. Go to resend.com → Sign up free
-//   2. Dashboard → API Keys → Create API Key → copy it
-//   3. On Render → Environment → add:
-//        RESEND_API_KEY = re_xxxxxxxxxxxxxxxxxx
-//   4. That's it — no other SMTP vars needed for sending
-//
-// Free plan: 3,000 emails/month, 100/day — more than enough
-//
-// NOTE: Resend requires a verified domain OR you can send
-// from onboarding@resend.dev while testing. To send from
-// bondadafoundationofficial@gmail.com you need to either:
-//   Option A: Add Gmail as a custom domain (not possible with Gmail)
-//   Option B: Use a domain you own e.g. bondadafoundation.org
-//             → verify it on Resend → send from
-//             noreply@bondadafoundation.org
-//   Option C: During testing use onboarding@resend.dev as FROM
-//             (recipient still gets the email, just from that address)
-//
-// RECOMMENDED: Use noreply@bondadafoundation.org as MAIL_FROM
-// since you already own bondadafoundation.org domain.
-// Verify it on Resend dashboard → Domains → Add Domain.
+// Render env vars required:
+//   RESEND_API_KEY = re_xxxxxxxxxxxxxxxxxx
+//   MAIL_FROM      = Bondada Foundation <noreply@bondadafoundation.org>
 // ============================================================
 
 import env from "../config/env.js";
 
 // ============================================================
 // CORE SEND via Resend HTTP API
-// No nodemailer needed — pure fetch call to Resend's API
 // ============================================================
 
 export const sendMail = async ({ to, subject, text, html }) => {
@@ -102,40 +82,13 @@ export const sendScholarshipStatusEmail = async ({
   const isApproved = newStatus === "approved";
   const isRejected = newStatus === "rejected";
 
-  let subject, statusLabel, statusBg, statusColor, bodyContent;
+  let subject, htmlBody, textBody;
 
   if (isApproved) {
-    subject     = `Congratulations! Your Scholarship Has Been Approved — ${applicationNumber}`;
-    statusLabel = "Approved ✅";
-    statusBg    = "#d4edda";
-    statusColor = "#155724";
-    bodyContent = `
-      <p>We are delighted to inform you that your scholarship application has been <strong>approved</strong>.</p>
-      <p>The scholarship amount will be disbursed to your registered bank account. Please ensure your bank details are correct.</p>
-      <p>If you have any queries, feel free to contact us.</p>`;
-  } else if (isRejected) {
-    subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel = "Rejected ❌";
-    statusBg    = "#f8d7da";
-    statusColor = "#721c24";
-    bodyContent = `
-      <p>Thank you for applying to the Bondada Nirmalavathi scholarship.</p>
-      <p>After careful review, we regret to inform you that your application has been <strong>rejected</strong> for this cycle.</p>
-      ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
-      <p>We encourage you to reapply in the future. If you have any questions, please contact us.</p>`;
-  } else {
-    subject     = `Update on Your Scholarship Application — ${applicationNumber}`;
-    statusLabel = newStatus;
-    statusBg    = "#e2e3e5";
-    statusColor = "#383d41";
-    bodyContent = `<p>Your application status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>`;
-  }
 
-  const remarksBlock = remarks
-    ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>`
-    : "";
+    subject = `Congratulations! Your Application Has Been Selected – Bondada Nirmalavathi Scholarship 2026`;
 
-  const html = `<!DOCTYPE html>
+    htmlBody = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -147,11 +100,14 @@ export const sendScholarshipStatusEmail = async ({
   .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
   .hdr h1{margin:0;font-size:22px;}
   .hdr p{margin:6px 0 0;font-size:13px;opacity:.85;}
-  .bdy{padding:28px 32px;color:#333;line-height:1.7;}
-  .badge{display:inline-block;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:14px;margin-bottom:18px;background:${statusBg};color:${statusColor};}
-  table{width:100%;border-collapse:collapse;margin:18px 0;}
-  td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
-  td:first-child{color:#666;width:45%;}
+  .bdy{padding:28px 32px;color:#333;line-height:1.8;font-size:15px;}
+  .status-box{background:#d4edda;border-left:4px solid #28a745;padding:14px 20px;border-radius:4px;margin:20px 0;color:#155724;font-weight:bold;}
+  .event-box{background:#f0f4ff;border:1px solid #c3cff7;border-radius:6px;padding:20px 24px;margin:20px 0;}
+  .event-box h3{margin:0 0 12px 0;color:#1a3c6e;font-size:16px;}
+  .event-box table{width:100%;border-collapse:collapse;}
+  .event-box td{padding:6px 0;font-size:14px;border:none;}
+  .event-box td:first-child{color:#555;width:80px;font-weight:bold;}
+  .highlight{color:#1a3c6e;font-weight:bold;}
   .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
   .ftr a{color:#1a3c6e;text-decoration:none;}
 </style>
@@ -164,18 +120,39 @@ export const sendScholarshipStatusEmail = async ({
   </div>
   <div class="bdy">
     <p>Dear <strong>${escapeHtml(studentName)}</strong>,</p>
-    <div class="badge">${statusLabel}</div>
-    ${bodyContent}
-    <table>
-      <tr><td>Application Number</td><td><strong>${escapeHtml(applicationNumber)}</strong></td></tr>
-      <tr><td>Scholarship</td><td>${escapeHtml(scholarshipName)}</td></tr>
-      <tr><td>Status</td><td><strong>${statusLabel}</strong></td></tr>
+    <p>Greetings from Bondada Foundation!</p>
+    <p>Thank you for applying to the <strong>Bondada Nirmalavathi Scholarship 2026 Program</strong>.</p>
+    <p>After careful review and evaluation, we are delighted to inform you that <strong>your application has been approved, and you have been selected for the Bondada Nirmalavathi Scholarship 2026.</strong></p>
+
+    <div class="status-box">
+      ✅ Application Status: Selected – Meets the Eligibility Criteria
+    </div>
+
+    <p>Congratulations on your selection!</p>
+    <p>We are pleased to invite you to attend the <strong>Bondada Nirmalavathi Scholarship Distribution Ceremony 2026</strong> and receive your scholarship.</p>
+
+    <div class="event-box">
+      <h3>🎓 Event Details</h3>
+      <table>
+        <tr><td>Date</td><td><span class="highlight">Sunday, 25 October 2026</span></td></tr>
+        <tr><td>Time</td><td><span class="highlight">9:30 AM onwards</span></td></tr>
+        <tr><td>Venue</td><td><span class="highlight">Gandhi Kshetram, Avanigadda, Krishna District, Andhra Pradesh</span></td></tr>
+      </table>
+    </div>
+
+    <p>Please arrive at the venue on time to receive your scholarship.</p>
+
+    <table style="width:100%;border-collapse:collapse;margin:18px 0;border:1px solid #eee;border-radius:4px;">
+      <tr style="background:#f8f9fa;"><td style="padding:10px 14px;color:#666;width:45%;border-bottom:1px solid #eee;">Application Number</td><td style="padding:10px 14px;border-bottom:1px solid #eee;"><strong>${escapeHtml(applicationNumber)}</strong></td></tr>
+      <tr><td style="padding:10px 14px;color:#666;border-bottom:1px solid #eee;">Scholarship</td><td style="padding:10px 14px;border-bottom:1px solid #eee;">${escapeHtml(scholarshipName)}</td></tr>
+      <tr style="background:#f8f9fa;"><td style="padding:10px 14px;color:#666;">Status</td><td style="padding:10px 14px;color:#155724;font-weight:bold;">Selected ✅</td></tr>
     </table>
-    ${remarksBlock}
-    <p>For queries:
-      <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>
-    </p>
-    <p>Warm regards,<br/><strong>Bondada Foundation Team</strong></p>
+
+    ${remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : ""}
+
+    <p>We sincerely appreciate your interest in the program and look forward to celebrating your academic achievements.</p>
+    <p>If you have any questions or need clarification, please feel free to contact us at <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>.</p>
+    <p>Best regards,<br/><strong>Bondada Foundation Team</strong></p>
   </div>
   <div class="ftr">
     &copy; ${new Date().getFullYear()} Bondada Foundation &nbsp;|&nbsp;
@@ -185,11 +162,127 @@ export const sendScholarshipStatusEmail = async ({
 </body>
 </html>`;
 
-  const text = isApproved
-    ? `Dear ${studentName},\n\nCongratulations! Your application (${applicationNumber}) for ${scholarshipName} has been APPROVED.\n\nThe amount will be disbursed to your bank account.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`
-    : `Dear ${studentName},\n\nYour application (${applicationNumber}) for ${scholarshipName} has been REJECTED.\n\n${reason ? "Reason: " + reason + "\n\n" : ""}We encourage you to reapply in the future.\n\nQueries: bondadafoundationofficial@gmail.com\n\nBondada Foundation Team`;
+    textBody = `Dear ${studentName},
 
-  return sendMail({ to: studentEmail, subject, html, text });
+Greetings from Bondada Foundation!
+
+Thank you for applying to the Bondada Nirmalavathi Scholarship 2026 Program.
+
+After careful review and evaluation, we are delighted to inform you that your application has been approved, and you have been selected for the Bondada Nirmalavathi Scholarship 2026.
+
+Application Status: Selected – Meets the Eligibility Criteria.
+
+Congratulations on your selection!
+
+We are pleased to invite you to attend the Bondada Nirmalavathi Scholarship Distribution Ceremony 2026 and receive your scholarship.
+
+EVENT DETAILS:
+Date   : Sunday, 25 October 2026
+Time   : 9:30 AM onwards
+Venue  : Gandhi Kshetram, Avanigadda, Krishna District, Andhra Pradesh
+
+Please arrive at the venue on time to receive your scholarship.
+
+Application Number : ${applicationNumber}
+Scholarship        : ${scholarshipName}
+Status             : Selected ✅
+
+We sincerely appreciate your interest in the program and look forward to celebrating your academic achievements.
+
+If you have any questions or need clarification, please feel free to contact us at bondadafoundationofficial@gmail.com.
+
+Best regards,
+Bondada Foundation Team`;
+
+  } else if (isRejected) {
+
+    subject = `Bondada Foundation Scholarship – Application Status`;
+
+    htmlBody = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>${subject}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:0;}
+  .wrap{max-width:620px;margin:30px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+  .hdr{background:#1a3c6e;color:#fff;padding:28px 32px;}
+  .hdr h1{margin:0;font-size:22px;}
+  .hdr p{margin:6px 0 0;font-size:13px;opacity:.85;}
+  .bdy{padding:28px 32px;color:#333;line-height:1.8;font-size:15px;}
+  .status-box{background:#f8d7da;border-left:4px solid #dc3545;padding:14px 20px;border-radius:4px;margin:20px 0;color:#721c24;font-weight:bold;}
+  .ftr{background:#f4f4f4;padding:16px 32px;font-size:12px;color:#888;text-align:center;}
+  .ftr a{color:#1a3c6e;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <h1>Bondada Foundation</h1>
+    <p>Scholarship Application Update</p>
+  </div>
+  <div class="bdy">
+    <p>Dear <strong>${escapeHtml(studentName)}</strong>,</p>
+    <p>Thank you for applying to the <strong>Bondada Nirmalavathi Scholarship 2026</strong>.</p>
+    <p>After careful review, we regret to inform you that your application was not approved for the current scholarship cycle.</p>
+
+    <div class="status-box">
+      ❌ ${reason ? escapeHtml(reason) : "Reason: Not Eligible – Application Does Not Meet the Eligibility Criteria."}
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:18px 0;border:1px solid #eee;border-radius:4px;">
+      <tr style="background:#f8f9fa;"><td style="padding:10px 14px;color:#666;width:45%;border-bottom:1px solid #eee;">Application Number</td><td style="padding:10px 14px;border-bottom:1px solid #eee;"><strong>${escapeHtml(applicationNumber)}</strong></td></tr>
+      <tr><td style="padding:10px 14px;color:#666;border-bottom:1px solid #eee;">Scholarship</td><td style="padding:10px 14px;border-bottom:1px solid #eee;">${escapeHtml(scholarshipName)}</td></tr>
+      <tr style="background:#f8f9fa;"><td style="padding:10px 14px;color:#666;">Status</td><td style="padding:10px 14px;color:#721c24;font-weight:bold;">Not Approved ❌</td></tr>
+    </table>
+
+    ${remarks ? `<p><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : ""}
+
+    <p>We appreciate your interest in the scholarship program and encourage you to apply for future opportunities, provided you meet the eligibility criteria.</p>
+    <p>If you have any questions or need clarification, please feel free to contact us at <a href="mailto:bondadafoundationofficial@gmail.com">bondadafoundationofficial@gmail.com</a>.</p>
+    <p>Best regards,<br/><strong>Bondada Foundation Team</strong></p>
+  </div>
+  <div class="ftr">
+    &copy; ${new Date().getFullYear()} Bondada Foundation &nbsp;|&nbsp;
+    <a href="https://bondadafoundation.org">bondadafoundation.org</a>
+  </div>
+</div>
+</body>
+</html>`;
+
+    textBody = `Dear ${studentName},
+
+Thank you for applying to the Bondada Nirmalavathi Scholarship 2026.
+
+After careful review, we regret to inform you that your application was not approved for the current scholarship cycle.
+
+${reason ? reason : "Reason: Not Eligible – Application Does Not Meet the Eligibility Criteria."}
+
+Application Number : ${applicationNumber}
+Scholarship        : ${scholarshipName}
+Status             : Not Approved ❌
+
+We appreciate your interest in the scholarship program and encourage you to apply for future opportunities, provided you meet the eligibility criteria.
+
+If you have any questions or need clarification, please feel free to contact us at bondadafoundationofficial@gmail.com.
+
+Best regards,
+Bondada Foundation Team`;
+
+  } else {
+
+    // Generic fallback for any other status
+    subject  = `Update on Your Scholarship Application — ${applicationNumber}`;
+    htmlBody = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:20px;">
+      <p>Dear ${escapeHtml(studentName)},</p>
+      <p>Your scholarship application (${escapeHtml(applicationNumber)}) status has been updated to <strong>${escapeHtml(newStatus)}</strong>.</p>
+      <p>Best regards,<br/>Bondada Foundation Team</p>
+    </body></html>`;
+    textBody = `Dear ${studentName},\n\nYour application (${applicationNumber}) status has been updated to ${newStatus}.\n\nBondada Foundation Team`;
+  }
+
+  return sendMail({ to: studentEmail, subject, html: htmlBody, text: textBody });
 };
 
 // ============================================================
@@ -250,6 +343,10 @@ export const sendDonationReceiptEmail = async ({
     text: `Dear ${donorName},\nDonation of ${fmt} received.\nCause: ${cause}\nTxn: ${transactionId}\nDate: ${paymentDate}\n\nBondada Foundation`,
   });
 };
+
+// ============================================================
+// HELPER — HTML escape
+// ============================================================
 
 const escapeHtml = (str) =>
   String(str ?? "")
