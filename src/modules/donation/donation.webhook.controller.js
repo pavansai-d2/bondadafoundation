@@ -39,6 +39,12 @@ const extractDonorName = (notes) => {
 export const handleRazorpayWebhook = async (req, res) => {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
+  console.log("[razorpay-webhook] request received", {
+    hasSignature: Boolean(req.headers["x-razorpay-signature"]),
+    eventId: req.headers["x-razorpay-event-id"] || null,
+    bytes: Buffer.isBuffer(req.body) ? req.body.length : 0,
+  });
+
   if (!secret) {
     console.error("[razorpay-webhook] RAZORPAY_WEBHOOK_SECRET is not set.");
     return res.status(500).send("Webhook not configured");
@@ -63,6 +69,7 @@ export const handleRazorpayWebhook = async (req, res) => {
 
   // Only successful money-received events.
   if (event.event !== "payment.captured") {
+    console.log(`[razorpay-webhook] event "${event.event}" ignored (only payment.captured is used).`);
     return res.status(200).send("ignored");
   }
 

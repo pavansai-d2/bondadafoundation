@@ -13,7 +13,7 @@ import env from "../config/env.js";
 // CORE SEND via Resend HTTP API
 // ============================================================
 
-export const sendMail = async ({ to, subject, text, html }) => {
+export const sendMail = async ({ to, subject, text, html, from }) => {
   const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
@@ -22,7 +22,7 @@ export const sendMail = async ({ to, subject, text, html }) => {
   }
 
   const fromAddress =
-    env.mail.from || "Bondada Foundation <noreply@bondadafoundation.org>";
+    from || env.mail.from || "Bondada Foundation <noreply@bondadafoundation.org>";
 
   try {
     console.log(`[mailer] Sending via Resend → ${to} | "${subject}"`);
@@ -472,7 +472,13 @@ With sincere gratitude,
 Warm regards,
 Team Bondada Foundation`;
 
-  return sendMail({ to: donorEmail, subject, html, text });
+  // Sent from info@bondadafoundation.org (override with DONATION_MAIL_FROM).
+  // The sending domain bondadafoundation.org must be verified in Resend.
+  const from =
+    process.env.DONATION_MAIL_FROM ||
+    "Bondada Foundation <info@bondadafoundation.org>";
+
+  return sendMail({ to: donorEmail, subject, html, text, from });
 };
 
 // ============================================================
