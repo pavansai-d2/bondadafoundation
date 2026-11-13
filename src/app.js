@@ -12,6 +12,7 @@ import scholarshipRoutes from "./modules/scholarship/scholarship.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import contactRoutes from "./modules/contact/contact.routes.js";
 import donationRoutes from "./modules/donation/donation.routes.js"; // ← NEW
+import donationWebhookRoutes from "./modules/donation/donation.webhook.routes.js";
 
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
@@ -127,6 +128,14 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// ============================================================
+// RAZORPAY WEBHOOK (must come BEFORE express.json)
+// The signature is computed over the raw request bytes, so this
+// route uses express.raw() and must not go through the JSON parser.
+// ============================================================
+
+app.use("/api/v1/webhooks", donationWebhookRoutes);
 
 // ============================================================
 // BODY PARSERS

@@ -432,6 +432,50 @@ export const sendDonationReceiptEmail = async ({
 };
 
 // ============================================================
+// DONATION THANK-YOU EMAIL
+// Sent automatically by the Razorpay webhook after a donation
+// is captured on pages.razorpay.com/bondadafoundation
+// ============================================================
+
+export const sendDonationThankYouEmail = async ({ donorName, donorEmail, amount }) => {
+  const name = (donorName || "Donor").trim();
+  const isWhole = Number.isInteger(Number(amount));
+  const amountText = Number(amount).toLocaleString("en-IN", {
+    minimumFractionDigits: isWhole ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+
+  const subject = "Thank You for Your Contribution | Bondada Foundation";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><title>${subject}</title></head>
+<body style="font-family:Arial,sans-serif;font-size:15px;color:#222;line-height:1.7;margin:0;padding:20px;">
+  <p>Dear ${escapeHtml(name)},</p>
+  <p>Greetings from Bondada Foundation!</p>
+  <p>We extend our heartfelt thanks for your generous contribution of <strong>\u20B9${escapeHtml(amountText)}</strong>.</p>
+  <p>We sincerely appreciate your generosity and support. Your contribution strengthens our commitment to creating a positive impact in society. Thank you for being a valued part of our journey.</p>
+  <p>With sincere gratitude,</p>
+  <p><strong>Warm regards,</strong><br/>Team Bondada Foundation</p>
+</body></html>`;
+
+  const text = `Dear ${name},
+
+Greetings from Bondada Foundation!
+
+We extend our heartfelt thanks for your generous contribution of \u20B9${amountText}.
+
+We sincerely appreciate your generosity and support. Your contribution strengthens our commitment to creating a positive impact in society. Thank you for being a valued part of our journey.
+
+With sincere gratitude,
+
+Warm regards,
+Team Bondada Foundation`;
+
+  return sendMail({ to: donorEmail, subject, html, text });
+};
+
+// ============================================================
 // HELPER — HTML escape
 // ============================================================
 
@@ -446,4 +490,5 @@ export default {
   sendMail,
   sendScholarshipStatusEmail,
   sendDonationReceiptEmail,
+  sendDonationThankYouEmail,
 };
